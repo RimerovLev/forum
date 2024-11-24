@@ -41,7 +41,10 @@ public class UserAccountController {
         return userAccountService.register(userRegisterDto);
     }
 
-
+    @PostMapping("/login")
+    public UserDto login(Principal principal) {
+        return userAccountService.getUser(principal.getName());
+    }
 
 
     @GetMapping("/user/{login}")
@@ -65,7 +68,6 @@ public class UserAccountController {
     @PutMapping("/user/{login}/role/{role}")
     public RolesDto addRole(@PathVariable String login, @PathVariable String role) {
         return userAccountService.changeRolesList(login, role, true);
-
     }
 
 
