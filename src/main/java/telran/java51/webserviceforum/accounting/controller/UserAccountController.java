@@ -2,6 +2,7 @@ package telran.java51.webserviceforum.accounting.controller;
 
 
 import java.security.Principal;
+import java.util.Base64;
 
 
 import org.springframework.http.HttpStatus;
@@ -42,8 +43,10 @@ public class UserAccountController {
     }
 
     @PostMapping("/login")
-    public UserDto login(Principal principal) {
-        return userAccountService.getUser(principal.getName());
+    public UserDto login(@RequestHeader("Authorization") String token) {
+        token = token.split(" ")[1];
+        String credentials = new String(Base64.getDecoder().decode(token));
+        return userAccountService.getUser(credentials.split(":")[0]);
     }
 
 
