@@ -47,7 +47,8 @@ public class UserAccountController {
         token = token.split(" ")[1];
         String credentials = new String(Base64.getDecoder().decode(token));
         return userAccountService.getUser(credentials.split(":")[0]);
-
+//TODO
+//        HERE!!!!
     }
 
 
