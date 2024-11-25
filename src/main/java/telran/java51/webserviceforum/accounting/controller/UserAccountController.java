@@ -41,8 +41,10 @@ public class UserAccountController {
         return userAccountService.register(userRegisterDto);
     }
 
-
-
+    @PostMapping("/login")
+    public UserDto login(Principal principal) {
+        return userAccountService.getUser(principal.getName());
+    }
 
     @GetMapping("/user/{login}")
     public UserDto getUser(@PathVariable String login) {
