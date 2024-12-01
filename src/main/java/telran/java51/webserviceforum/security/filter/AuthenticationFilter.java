@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.mindrot.jbcrypt.BCrypt;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import telran.java51.webserviceforum.accounting.dao.UserAccountRepository;
@@ -14,77 +15,78 @@ import java.security.Principal;
 import java.util.Base64;
 
 @Component  // 1
-@RequiredArgsConstructor  // 2
+@RequiredArgsConstructor
+@Order(10)
 public class AuthenticationFilter implements Filter {
 
+    // Репозиторий для работы с аккаунтами пользователей
     final UserAccountRepository userAccountRepository;
 
-    @Override  // 5
-    public void doFilter(ServletRequest req, ServletResponse resp, FilterChain chain)  // 6
+    @Override
+    public void doFilter(ServletRequest req, ServletResponse resp, FilterChain chain) // Основной метод фильтрации запросов
             throws IOException, ServletException {
-        // Преобразуем объекты ServletRequest и ServletResponse в HttpServletRequest и HttpServletResponse
+        // Преобразуем ServletRequest и ServletResponse в их HTTP-версии для удобной работы с методами HTTP
         HttpServletRequest request = (HttpServletRequest) req;
         HttpServletResponse response = (HttpServletResponse) resp;
 
-        // Проверяем, нужно ли аутентифицировать запрос в зависимости от его метода и пути
+        // Проверяем, требует ли текущий запрос аутентификации
         if (checkEndPoint(request.getMethod(), request.getServletPath())) {
-            UserAccount userAccount;
+            UserAccount userAccount; // Для хранения данных пользователя после проверки
             try {
-                // Извлекаем учетные данные из заголовка Authorization
+                // Получаем учетные данные из заголовка Authorization
                 String[] credentials = getCredentials(request.getHeader("Authorization"));
 
-                // Ищем пользователя по ID (первый элемент credentials — это имя пользователя)
+                // Пытаемся найти пользователя в репозитории по его идентификатору
                 userAccount = userAccountRepository.findById(credentials[0])
-                        .orElseThrow(RuntimeException::new);
+                        .orElseThrow(RuntimeException::new); // Выбрасываем исключение, если пользователь не найден
 
-                // Проверяем пароль, используя BCrypt
+                // Проверяем, совпадает ли переданный пароль с хэшем в базе данных
                 if (!BCrypt.checkpw(credentials[1], userAccount.getPassword())) {
-                    throw new RuntimeException();
+                    throw new RuntimeException(); // Выбрасываем исключение, если пароли не совпадают
                 }
             } catch (Exception e) {
-                // Если произошла ошибка аутентификации, отправляем код 401 (Unauthorized)
+                // В случае ошибки аутентификации возвращаем клиенту статус 401 (Unauthorized)
                 response.sendError(401);
-                return;
+                return; // Прерываем дальнейшую обработку запроса
             }
-            // Оборачиваем запрос, добавляя информацию о логине пользователя
+            // Оборачиваем текущий запрос в специальный объект, добавляющий информацию о пользователе
             request = new WrappedRequest(request, userAccount.getLogin());
         }
-
-        // Передаем запрос и ответ дальше по цепочке фильтров
+        // Передаем запрос дальше по цепочке фильтров или в конечную точку
         chain.doFilter(request, response);
     }
 
     // Метод для проверки, нужно ли аутентифицировать запрос
     private boolean checkEndPoint(String method, String path) {
-        // Возвращаем false, если это POST-запрос на /account/register (не требует аутентификации)
-        return !(HttpMethod.POST.matches(method) && path.matches("/account/register")||
-                !(path.matches("/posts(/.*)?")));
+        // Возвращает false, если это POST-запрос на /account/register или /posts, т.к. они не требуют аутентификации
+        return !((HttpMethod.POST.matches(method) && path.matches("/account/register") ||
+                (HttpMethod.POST.matches(method) && path.matches("/posts(/.*)?"))));
     }
 
-    // Метод для извлечения учетных данных из заголовка Authorization
+    // Метод для получения учетных данных из заголовка Authorization
     private String[] getCredentials(String header) {
-        // Извлекаем токен из заголовка, который находится после "Basic "
+        // Разделяем заголовок Authorization, чтобы получить Base64-токен
         String token = header.split(" ")[1];
-        // Декодируем Base64 токен в строку и разделяем её по символу ":"
+        // Декодируем токен из Base64 и преобразуем в строку
         String decode = new String(Base64.getDecoder().decode(token));
+        // Разделяем строку на логин и пароль, которые передаются через двоеточие
         return decode.split(":");
     }
 
-    // Вспомогательный класс для оборачивания запроса и добавления логина пользователя
+    // Внутренний класс для оборачивания запроса и добавления пользовательских данных
     private class WrappedRequest extends HttpServletRequestWrapper {
-        private String login;  // 29
+        private String login; // Поле для хранения логина пользователя
 
-        // Конструктор, который инициализирует оригинальный запрос и логин пользователя
+        // Конструктор, который принимает исходный запрос и логин пользователя
         public WrappedRequest(HttpServletRequest request, String login) {
-            super(request);  // 31
-            this.login = login;  // 32
+            super(request); // Вызываем конструктор родительского класса
+            this.login = login; // Сохраняем логин
         }
 
-        // Переопределяем метод getUserPrincipal для возвращения логина пользователя
+        // Переопределяем метод для возврата Principal с логином текущего пользователя
         @Override
         public Principal getUserPrincipal() {
-            // Возвращаем объект Principal с логином пользователя
-            return () -> login;
+            return () -> login; // Возвращаем объект, который предоставляет логин пользователя
         }
     }
 }
