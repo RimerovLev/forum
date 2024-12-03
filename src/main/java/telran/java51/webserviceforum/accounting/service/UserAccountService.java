@@ -1,4 +1,5 @@
 package telran.java51.webserviceforum.accounting.service;
+
 import org.springframework.stereotype.Service;
 import telran.java51.webserviceforum.accounting.dto.RolesDto;
 import telran.java51.webserviceforum.accounting.dto.UserDto;
@@ -10,8 +11,6 @@ public interface UserAccountService {
 
 
     UserDto register(UserRegisterDto userRegisterDto);
-
-
 
 
     UserDto getUser(String login);
