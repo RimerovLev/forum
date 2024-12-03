@@ -1,6 +1,7 @@
 package telran.java51.webserviceforum.accounting.dto;
 
 import lombok.*;
+import telran.java51.webserviceforum.accounting.model.Role;
 
 import java.util.Set;
 
@@ -11,5 +12,5 @@ import java.util.Set;
 public class RolesDto {
     String login;
     @Singular
-    Set<String> roles;
+    Set<Role> roles;
 }

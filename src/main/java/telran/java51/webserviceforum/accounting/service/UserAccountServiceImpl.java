@@ -3,6 +3,7 @@ package telran.java51.webserviceforum.accounting.service;
 import lombok.RequiredArgsConstructor;
 import org.mindrot.jbcrypt.BCrypt;
 import org.modelmapper.ModelMapper;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
 import telran.java51.webserviceforum.accounting.dao.UserAccountRepository;
 import telran.java51.webserviceforum.accounting.dto.Exceptions.UserExistsException;
@@ -15,7 +16,7 @@ import telran.java51.webserviceforum.accounting.model.UserAccount;
 
 @Service
 @RequiredArgsConstructor
-public class UserAccountServiceImpl implements UserAccountService {
+public class UserAccountServiceImpl implements UserAccountService, CommandLineRunner {
 
 
     final UserAccountRepository userAccountRepository;
@@ -84,4 +85,14 @@ public class UserAccountServiceImpl implements UserAccountService {
     }
 
 
+    @Override
+    public void run(String... args) throws Exception {
+        if (!userAccountRepository.existsById("admin")){
+            String password = BCrypt.hashpw("admin", BCrypt.gensalt());
+            UserAccount userAccount = new UserAccount("admin", password, "", "");
+            userAccount.addRole("MODERATOR");
+            userAccount.addRole("ADMINISTRATOR");
+            userAccountRepository.save(userAccount);
+        }
+    }
 }
