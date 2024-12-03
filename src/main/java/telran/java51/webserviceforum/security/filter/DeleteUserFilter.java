@@ -9,16 +9,14 @@ import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import telran.java51.webserviceforum.accounting.dao.UserAccountRepository;
 import telran.java51.webserviceforum.accounting.model.UserAccount;
+import telran.java51.webserviceforum.security.model.User;
 
 import java.io.IOException;
 import java.security.Principal;
 
 @Component
 @Order(30)
-@RequiredArgsConstructor
 public class DeleteUserFilter implements Filter {
-
-    final UserAccountRepository userAccountRepository;
 
     @Override
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
@@ -28,9 +26,8 @@ public class DeleteUserFilter implements Filter {
             Principal principal = httpServletRequest.getUserPrincipal();
             String[] arr = httpServletRequest.getServletPath().split("/");
             String userName = arr[arr.length - 1];
-            UserAccount userAccount = userAccountRepository
-                    .findById(principal.getName()).get();
-            if (!(userAccount.getRoles().contains("ADMINISTRATOR")
+            User user = (User) httpServletRequest.getUserPrincipal();
+            if (!(user.getRoles().contains("ADMINISTRATOR")
                     || principal.getName().equalsIgnoreCase(userName))) {
                 httpServletResponse.sendError(403);
                 return;

@@ -10,83 +10,91 @@ import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import telran.java51.webserviceforum.accounting.dao.UserAccountRepository;
 import telran.java51.webserviceforum.accounting.model.UserAccount;
+import telran.java51.webserviceforum.security.model.User;
 import java.io.IOException;
 import java.security.Principal;
 import java.util.Base64;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-@Component  // 1
-@RequiredArgsConstructor
-@Order(10)
-public class AuthenticationFilter implements Filter {
+@Component  // 1. Аннотация Spring, обозначающая, что данный класс является компонентом и будет управляться контейнером Spring.
+@RequiredArgsConstructor  // 2. Аннотация Lombok, создающая конструктор для финальных полей класса (в данном случае `userAccountRepository`).
+@Order(10)  // 3. Задает порядок выполнения фильтров. Чем меньше значение, тем выше приоритет.
+public class AuthenticationFilter implements Filter { // 4. Реализация интерфейса Filter для создания кастомного фильтра.
 
-    // Репозиторий для работы с аккаунтами пользователей
-    final UserAccountRepository userAccountRepository;
+    final UserAccountRepository userAccountRepository; // 5. Репозиторий для работы с данными пользователей.
 
     @Override
-    public void doFilter(ServletRequest req, ServletResponse resp, FilterChain chain) // Основной метод фильтрации запросов
+    public void doFilter(ServletRequest req, ServletResponse resp, FilterChain chain) // 6. Основной метод фильтрации запросов.
             throws IOException, ServletException {
-        // Преобразуем ServletRequest и ServletResponse в их HTTP-версии для удобной работы с методами HTTP
+        // 7. Преобразуем общие ServletRequest и ServletResponse в их HTTP-версии для работы с HTTP-запросами.
         HttpServletRequest request = (HttpServletRequest) req;
         HttpServletResponse response = (HttpServletResponse) resp;
 
-        // Проверяем, требует ли текущий запрос аутентификации
+        // 8. Проверяем, нужно ли применять аутентификацию для данного запроса.
         if (checkEndPoint(request.getMethod(), request.getServletPath())) {
-            UserAccount userAccount; // Для хранения данных пользователя после проверки
+            UserAccount userAccount; // 9. Объект для хранения данных пользователя.
             try {
-                // Получаем учетные данные из заголовка Authorization
+                // 10. Извлекаем учетные данные из заголовка Authorization.
                 String[] credentials = getCredentials(request.getHeader("Authorization"));
 
-                // Пытаемся найти пользователя в репозитории по его идентификатору
+                // 11. Ищем пользователя в репозитории по идентификатору.
                 userAccount = userAccountRepository.findById(credentials[0])
-                        .orElseThrow(RuntimeException::new); // Выбрасываем исключение, если пользователь не найден
+                        .orElseThrow(RuntimeException::new); // Если пользователь не найден, выбрасывается исключение.
 
-                // Проверяем, совпадает ли переданный пароль с хэшем в базе данных
+                // 12. Проверяем, совпадает ли переданный пароль с хэшем в базе данных.
                 if (!BCrypt.checkpw(credentials[1], userAccount.getPassword())) {
-                    throw new RuntimeException(); // Выбрасываем исключение, если пароли не совпадают
+                    throw new RuntimeException(); // Если пароли не совпадают, выбрасываем исключение.
                 }
             } catch (Exception e) {
-                // В случае ошибки аутентификации возвращаем клиенту статус 401 (Unauthorized)
+                // 13. Если аутентификация не удалась, возвращаем клиенту HTTP-ответ с кодом 401 (Unauthorized).
                 response.sendError(401);
-                return; // Прерываем дальнейшую обработку запроса
+                return; // Прерываем дальнейшую обработку запроса.
             }
-            // Оборачиваем текущий запрос в специальный объект, добавляющий информацию о пользователе
-            request = new WrappedRequest(request, userAccount.getLogin());
+
+            // 14. Извлекаем роли пользователя и преобразуем их в множество строк.
+            Set<String> roles = userAccount.getRoles().stream().map(r -> r.toString()).collect(Collectors.toSet());
+
+            // 15. Оборачиваем запрос в специальный класс, добавляющий информацию о пользователе.
+            request = new WrappedRequest(request, userAccount.getLogin(), roles);
         }
-        // Передаем запрос дальше по цепочке фильтров или в конечную точку
+        // 16. Передаем запрос дальше по цепочке фильтров или к конечной точке.
         chain.doFilter(request, response);
     }
 
-    // Метод для проверки, нужно ли аутентифицировать запрос
+    // 17. Метод проверки, нужно ли применять аутентификацию к текущему запросу.
     private boolean checkEndPoint(String method, String path) {
-        // Возвращает false, если это POST-запрос на /account/register или /posts, т.к. они не требуют аутентификации
+        // Возвращает false, если это POST-запрос на /account/register или /posts, которые не требуют аутентификации.
         return !((HttpMethod.POST.matches(method) && path.matches("/account/register") ||
                 (HttpMethod.POST.matches(method) && path.matches("/posts(/.*)?"))));
     }
 
-    // Метод для получения учетных данных из заголовка Authorization
+    // 18. Метод извлечения учетных данных из заголовка Authorization.
     private String[] getCredentials(String header) {
-        // Разделяем заголовок Authorization, чтобы получить Base64-токен
+        // Разделяем заголовок Authorization и декодируем Base64-токен.
         String token = header.split(" ")[1];
-        // Декодируем токен из Base64 и преобразуем в строку
         String decode = new String(Base64.getDecoder().decode(token));
-        // Разделяем строку на логин и пароль, которые передаются через двоеточие
+        // Разделяем результат на логин и пароль.
         return decode.split(":");
     }
 
-    // Внутренний класс для оборачивания запроса и добавления пользовательских данных
+    // 19. Внутренний класс для обертки запроса с добавлением информации о пользователе.
     private class WrappedRequest extends HttpServletRequestWrapper {
-        private String login; // Поле для хранения логина пользователя
+        private String login; // Поле для хранения логина пользователя.
+        private Set<String> roles; // Поле для хранения ролей пользователя.
 
-        // Конструктор, который принимает исходный запрос и логин пользователя
-        public WrappedRequest(HttpServletRequest request, String login) {
-            super(request); // Вызываем конструктор родительского класса
-            this.login = login; // Сохраняем логин
+        // 20. Конструктор, принимающий исходный запрос, логин и роли пользователя.
+        public WrappedRequest(HttpServletRequest request, String login, Set<String> roles) {
+            super(request); // Вызываем конструктор родительского класса.
+            this.login = login; // Сохраняем логин.
+            this.roles = roles; // Сохраняем роли.
         }
 
-        // Переопределяем метод для возврата Principal с логином текущего пользователя
+        // 21. Переопределяем метод для предоставления данных о текущем пользователе.
         @Override
         public Principal getUserPrincipal() {
-            return () -> login; // Возвращаем объект, который предоставляет логин пользователя
+            // Возвращаем объект Principal, содержащий логин и роли пользователя.
+            return new User(login, roles);
         }
     }
 }
